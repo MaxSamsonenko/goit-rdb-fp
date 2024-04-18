@@ -1,0 +1,118 @@
+﻿1. Завантажте дані:
+* Створіть схему pandemic у базі даних за допомогою SQL-команди.
+CREATE SCHEMA pandemic
+* Оберіть її як схему за замовчуванням за допомогою SQL-команди.
+USE pandemic;
+* Імпортуйте дані за допомогою Import wizard так, як ви вже робили це у темі 3.
+2. Нормалізуйте таблицю infectious_cases. Збережіть у цій же схемі дві таблиці з нормалізованими даними.
+CREATE TABLE entity_locations (
+    entity_id INT AUTO_INCREMENT PRIMARY KEY,
+    entity_name VARCHAR(255),
+    entity_code VARCHAR(10)
+);
+CREATE TABLE case_data (
+    case_id INT AUTO_INCREMENT PRIMARY KEY,
+    entity_id INT,
+    year INT,
+    number_yaws VARCHAR(255),
+    polio_cases INT,
+    cases_guini_worm INT,
+    number_rabies VARCHAR(255),
+    number_malaria VARCHAR(255),
+    number_hiv VARCHAR(255),
+    number_tuberculosis VARCHAR(255),
+    number_smallpox VARCHAR(255),
+    number_cholera_cases VARCHAR(255),
+    FOREIGN KEY (entity_id) REFERENCES entity_locations(entity_id)
+);
+
+
+Заповнення таблиці entity_locations:
+INSERT INTO entity_locations ( entity_name, entity_code)
+SELECT DISTINCT ic.entity, ic.code
+FROM infectious_cases ic
+WHERE NOT EXISTS (
+    SELECT 1 FROM entity_locations el
+    WHERE el.entity_name = ic.entity AND el.entity_code = ic.code
+);
+Заповнення таблиці case_data:
+
+
+INSERT INTO case_data (entity_id, year, number_yaws, polio_cases, cases_guinea_worm, number_rabies, number_malaria, number_hiv, number_tuberculosis, number_smallpox, number_cholera_cases)
+SELECT 
+    el.entity_id,
+    ic.year,
+    ic.number_yaws,
+    ic.polio_cases,
+    ic.cases_guinea_worm,
+    ic.number_rabies,
+    ic.number_malaria,
+    ic.number_hiv,
+    ic.number_tuberculosis,
+    ic.number_smallpox,
+    ic.number_cholera_cases
+FROM infectious_cases ic
+JOIN entity_locations el ON ic.entity = el.entity_name AND ic.code = el.entity_code;
+
+
+3. Проаналізуйте дані:
+* Для кожної унікальної комбінації Entity та Code або їх id порахуйте середнє, мінімальне, максимальне значення та суму для атрибута Number_rabies.
+💡 Врахуйте, що атрибут Number_rabies може містити порожні значення ‘’ — вам попередньо необхідно їх відфільтрувати.
+
+
+* Результат відсортуйте за порахованим середнім значенням у порядку спадання.
+* Оберіть тільки 10 рядків для виведення на екран.:
+WITH filtered_data AS (
+    SELECT 
+        entity_id,
+        number_rabies
+    FROM 
+        case_data
+    WHERE 
+        number_rabies != ''
+)
+SELECT 
+    entity_id,
+    AVG(CAST(number_rabies AS UNSIGNED)) AS avg_rabies,
+    MIN(CAST(number_rabies AS UNSIGNED)) AS min_rabies,
+    MAX(CAST(number_rabies AS UNSIGNED)) AS max_rabies,
+    SUM(CAST(number_rabies AS UNSIGNED)) AS sum_rabies
+FROM 
+    filtered_data
+GROUP BY 
+    entity_id
+ORDER BY 
+    avg_rabies DESC
+LIMIT 
+    10;
+4. Побудуйте колонку різниці в роках.
+Для оригінальної або нормованої таблиці для колонки Year побудуйте з використанням вбудованих SQL-функцій:
+* атрибут, що створює дату першого січня відповідного року,
+💡 Наприклад, якщо атрибут містить значення ’1996’, то значення нового атрибута має бути ‘1996-01-01’.
+
+
+* атрибут, що дорівнює поточній даті,
+* атрибут, що дорівнює різниці в роках двох вищезгаданих колонок.
+
+
+SELECT 
+    DISTINCT CONCAT(year, '-01-01') AS modified_year,
+    CURDATE() AS current_datetime,
+    TIMESTAMPDIFF(YEAR, CONCAT(year, '-01-01'), CURDATE()) AS year_diff
+FROM infectious_cases
+ORDER BY modified_year DESC;
+5. Побудуйте власну функцію.
+* Створіть і використайте функцію, що будує такий же атрибут, як і в попередньому завданні: функція має приймати на вхід значення року, а повертати різницю в роках між поточною датою та датою, створеною з атрибута року (1996 рік → ‘1996-01-01’).
+* DELIMITER //
+CREATE FUNCTION calculate_years(year INT) 
+RETURNS INT
+READS SQL DATA
+BEGIN
+    RETURN TIMESTAMPDIFF(YEAR, CONCAT(year, '-01-01'), CURDATE());
+END//
+DELIMITER ;
+
+
+SELECT year,
+calculate_years(year) AS years_since
+FROM infectious_cases;
